@@ -124,53 +124,58 @@ wss.on('connection', (ws, req) => {
     }
 
     // Initialize Deepgram WebSocket to listen to the customer
-    dgConnection = deepgram.listen.live({
-        model: "nova-3",
-        language: "hi", // Indian accented English + Hindi mix (Deepgram handles this well with 'hi' or 'en-IN')
-        encoding: "mulaw",
-        sample_rate: 8000,
-        channels: 1,
-        endpointing: 500, // Trigger final transcript if they stop speaking for 500ms
-    });
+    const setupDeepgram = async () => {
+        try {
+            dgConnection = await deepgram.listen.v1.createConnection({
+                model: "nova-3",
+                language: "hi", // Indian accented English + Hindi mix
+                encoding: "mulaw",
+                sample_rate: 8000,
+                channels: 1,
+                endpointing: 500,
+            });
 
-    dgConnection.on("open", () => {
-        console.log("👂 Deepgram listening to customer...");
-        
-        // Start the conversation immediately once everything is connected!
-        playAudioToTwilio("Hello, Kedarnath, Print It Nice se baat kar rahi hu. How can I help you today?");
-    });
+            dgConnection.on("open", () => {
+                console.log("👂 Deepgram listening to customer...");
+                playAudioToTwilio("Hello, Kedarnath, Print It Nice se baat kar rahi hu. How can I help you today?");
+            });
 
-    // When Deepgram detects speech
-    dgConnection.on("Results", async (data) => {
-        if (!data.channel || !data.channel.alternatives[0]) return;
-        
-        const transcript = data.channel.alternatives[0].transcript;
-        
-        // is_final means the customer stopped speaking (paused)
-        if (data.is_final && transcript.trim() !== "") {
-            console.log(`\n👤 Customer says: "${transcript}"`);
-            
-            // Send the customer's text to Gemini
-            const prompt = `Customer just said: "${transcript}". Reply to them following your system instructions.`;
-            try {
-                const aiResponse = await ai.models.generateContent({
-                    model: 'gemini-3.6-flash',
-                    contents: prompt,
-                    config: { systemInstruction: systemInstruction }
-                });
-                const replyText = aiResponse.text;
+            dgConnection.on("Results", async (data) => {
+                if (!data.channel || !data.channel.alternatives[0]) return;
                 
-                // Send the generated reply back to the caller
-                await playAudioToTwilio(replyText);
-            } catch (err) {
-                console.error("❌ Gemini Error:", err.message);
-            }
-        }
-    });
+                const transcript = data.channel.alternatives[0].transcript;
+                
+                if (data.is_final && transcript.trim() !== "") {
+                    console.log(`\n👤 Customer says: "${transcript}"`);
+                    
+                    const prompt = `Customer just said: "${transcript}". Reply to them following your system instructions.`;
+                    try {
+                        const aiResponse = await ai.models.generateContent({
+                            model: 'gemini-3.6-flash',
+                            contents: prompt,
+                            config: { systemInstruction: systemInstruction }
+                        });
+                        const replyText = aiResponse.text;
+                        await playAudioToTwilio(replyText);
+                    } catch (err) {
+                        console.error("❌ Gemini Error:", err.message);
+                    }
+                }
+            });
 
-    dgConnection.on("error", (err) => {
-        console.error("❌ Deepgram Error:", err);
-    });
+            dgConnection.on("error", (err) => {
+                console.error("❌ Deepgram Error:", err);
+            });
+
+            dgConnection.connect();
+            await dgConnection.waitForOpen();
+            
+        } catch (err) {
+            console.error("Deepgram Connection Error:", err);
+        }
+    };
+    
+    setupDeepgram();
 
     // Handle incoming audio from the customer's phone
     ws.on('message', (message) => {
