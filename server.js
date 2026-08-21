@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const twilio = require('twilio');
-const { createClient } = require('@deepgram/sdk');
+const { DeepgramClient } = require('@deepgram/sdk');
 const { GoogleGenAI } = require('@google/genai');
 const axios = require('axios');
 const { WaveFile } = require('wavefile');
@@ -17,7 +17,7 @@ app.use(express.json());
 
 // Initialize API Clients
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-const deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+const deepgram = new DeepgramClient({ apiKey: process.env.DEEPGRAM_API_KEY });
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const systemInstruction = `
