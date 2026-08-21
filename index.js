@@ -1,7 +1,7 @@
 require('dotenv').config();
 const axios = require('axios');
 const fs = require('fs');
-const OpenAI = require('openai');
+const { GoogleGenAI } = require('@google/genai');
 
 // 1. Structure the enquiry as a JSON object
 const enquiry = {
@@ -13,18 +13,13 @@ const enquiry = {
 };
 
 async function getLLMResponse(enquiryData) {
-  const apiKey = process.env.MOONSHOT_API_KEY;
-  if (!apiKey || apiKey === 'your_moonshot_api_key_here') {
-    console.error("\n❌ Error: MOONSHOT_API_KEY is missing or invalid in the .env file.");
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    console.error("\n❌ Error: GEMINI_API_KEY is missing or invalid in the .env file.");
     process.exit(1);
   }
 
-  // Moonshot (Kimi) is OpenAI API compatible! 
-  // We use the OpenAI SDK but point it to Moonshot's base URL.
-  const openai = new OpenAI({
-    apiKey: apiKey,
-    baseURL: "https://api.moonshot.ai/v1",
-  });
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   // System instruction defining the agent's behavior
   const systemInstruction = `
@@ -42,17 +37,17 @@ Your job:
   const prompt = `Here is the customer enquiry:\n\n${JSON.stringify(enquiryData, null, 2)}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "moonshot-v1-8k", // Standard Moonshot Kimi model
-      messages: [
-        { role: "system", content: systemInstruction },
-        { role: "user", content: prompt }
-      ],
+    const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: {
+            systemInstruction: systemInstruction,
+        }
     });
 
-    return completion.choices[0].message.content;
+    return response.text;
   } catch (error) {
-    console.error("\n❌ Moonshot/Kimi API Error:", error.message);
+    console.error("\n❌ Gemini API Error:", error.message);
     process.exit(1);
   }
 }
@@ -107,8 +102,8 @@ async function run() {
   console.log(JSON.stringify(enquiry, null, 2));
   console.log("\n          ↓\n");
 
-  // Step 2: LLM (Moonshot Kimi)
-  console.log("2️⃣  KIMI (MOONSHOT) RESPONSE");
+  // Step 2: LLM (Gemini)
+  console.log("2️⃣  GEMINI RESPONSE");
   console.log("----------------------");
   const aiText = await getLLMResponse(enquiry);
   console.log(`"${aiText}"`);
